@@ -15,13 +15,11 @@ from email.mime.text import MIMEText
 
 def create_message(sender, to, subject, message_text):
     """Create a message for an email.
-
     Args:
       sender: Email address of the sender.
       to: Email address of the receiver.
       subject: The subject of the email message.
       message_text: The text of the email message.
-
     Returns:
       An object containing a base64url encoded email object.
     """
@@ -35,12 +33,10 @@ def create_message(sender, to, subject, message_text):
 
 def send_message(mail_service, user_id, message):
     """Send an email message.
-
     Args:
       mail_service: Authorized Gmail API mail_service instance.
       user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
       message: Message to be sent.
-
     Returns:
       Sent Message.
     """
@@ -52,87 +48,81 @@ def send_message(mail_service, user_id, message):
         print('An error occurred: %s' % {error})
 
 
-def list_messages_matching_query(mail_service, user_id, query):
+def ids_of_messages_matching_query(mail_service, user_id, query_list):
     """List all Messages of the user's mailbox matching the query.
-
     Args:
     mail_service: Authorized Gmail API mail_service instance.
     user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-    query: String used to filter messages returned.
-    Eg.- 'from:user@some_domain.com' for Messages from a particular sender.
-
+    query_list: String list used to filter messages returned.
+    Eg.- ['from:user@some_domain.com'] for Messages from a particular sender.
     Returns:
     List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
     you must use get with the appropriate ID to get the details of a Message.
     """
+    emails_id = []
+    matches = []
     try:
-        emails_id = []
-        matches = []
-        for item in query:
-            messages = []
-            response = mail_service.users().messages().list(userId=user_id, q=item).execute()
+        for query in query_list:
+            response = mail_service.users().messages().list(userId=user_id, q=query).execute()
             if 'messages' in response:
-                messages.extend(response['messages'])
-
+                matches.extend(response['messages'])
             while 'nextPageToken' in response:
                 page_token = response['nextPageToken']
-                response = mail_service.users().messages().list(userId=user_id, q=item, pageToken=page_token).execute()
-                messages.extend(response['messages'])
-        matches.append(messages)
-        # One liners and tricks to unpack, remove duplicates and strip all unnecessary data:
-        matches = [item for sublist in matches for item in sublist]
-        matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
-        for i in matching_emails:
-            emails_id.append(i['id'])
-        return emails_id
+                response = mail_service.users().messages().list(userId=user_id, q=query, pageToken=page_token).execute()
+                matches.extend(response['messages'])
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
 
+    # Tricks remove duplicates, to unpack and strip all unnecessary data:
+    matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
+    for i in matching_emails:
+        emails_id.append(i['id'])
+    return emails_id
 
-def get_attachments(mail_service, user_id, emails_ids):
-    # TODO WORK IN PROGRESS
+
+def get_attachments_id(mail_service, user_id, emails_ids):
     """Get and store attachment from Message with given id.
-
     Args:
       mail_service: Authorized Gmail API mail_service instance.
-      user_id: User's email address. The special value "me"
-      can be used to indicate the authenticated user.
-      emails_id: IDs of Messages containing attachments.
-      # store_dir: The directory used to store attachments.
-
+      user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+      emails_ids: IDs of Messages containing attachments.
       Return:
-        Attachment file.
+        Attachments IDs.
     """
+    attachments_file_names = []
+    attachment_ids = []
+    mail_data = []
     try:
-        filename = []
-        attachment_data_as_bytes = []
-        attachment_data = []
-        mail_data = []
         # Iterate over emails_ids and fetch their data:
         for ids in emails_ids:
             data = mail_service.users().messages().get(userId=user_id, id=ids, format='full').execute()
             mail_data.append(data)
-            try:
-                # If attachment doesnt exist then don't try get it.
-                for email in mail_data:
-                    if 'parts' in email['payload']:
-                        # Ranges start at 1, because 0 don't include anything useful.
-                        for i in range(1, (len(email['payload']['parts']))):
-                            parts = email['payload']['parts'][i]
-                            filename.append((parts['filename']))
-                            attachment_data_as_bytes.append(
-                                base64.urlsafe_b64decode(parts['body']['attachmentId'] + "==="))
-                            attachment_data.append(parts['body']['attachmentId'] + "===")
-            except:
-                return mail_data  # Return for debug purposes
+    except errors.HttpError as error:
+        print('An error occurred: %s' % {error})
+        # If attachment doesnt exist then don't try get it.
+    for email in mail_data:
+        if 'parts' in email['payload']:
+            # Ranges start at 1, because 0 include body.
+            for i in range(1, (len(email['payload']['parts']))):
+                parts = email['payload']['parts'][i]
+                attachments_file_names.append((parts['filename']))
+                attachment_ids.append(parts['body']['attachmentId'])
+    # mail_data is leftover for debug purposes.
+    return {'mail_data': mail_data, 'Attachment IDs': attachment_ids, 'Attachments file_names': attachments_file_names}
 
-        # path = (mail_attachment_parts[i]['filename'])
-        # with open(path, 'w') as file:
-        #     file.write(base64.urlsafe_b64decode(mail_attachment_parts[i]['body']['attachmentId'] + "==="))
 
-        return {'mail_data': mail_data, 'data': attachment_data, 'filename': filename,
-                'as_bytes': attachment_data_as_bytes}
+def save_attachments_on_hard_drive(mail_service, user_id, attachments_ids, store_dir):
+    # TODO work in progress
+    """Get and store attachment from Message with given id.
 
+    Args:
+      mail_service: Authorized Gmail API mail_service instance.
+      user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+      attachments_ids: IDs of attachments to download.
+      Return:
+        Attachment file.
+    """
+    attachment_file=mail_service.users().messages().attachments().get(userId=user_id,id=attachments_ids).execute()
     # path = part['filename']
     #
     # with open(path, 'w') as f:
@@ -143,8 +133,6 @@ def get_attachments(mail_service, user_id, emails_ids):
     # f.write(file_data)
     # f.close()
 
-    except errors.HttpError as error:
-        print('An error occurred: %s' % {error})
     # TODO code prone to errors - make proper error handler:
     # except errors:
     #     print('Unknown error, probably no attachment in emails')
@@ -234,8 +222,9 @@ def main():
 
     # Check for any emails matching query:
     query = ['trzyfaktury']
-    emails_ids = list_messages_matching_query(mail_service, 'me', query)
 
+    emails_ids = ids_of_messages_matching_query(mail_service, 'me', query)
+    c = 0
     # simple debug: attachment data fetch
     # filename = []
     # attachment_data_as_bytes = []
@@ -260,8 +249,11 @@ def main():
     folderid = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", 'Folder na faktury'))
 
     # Data from emails:
-    file_data = get_attachments(mail_service, 'me', emails_ids)
-
+    file_data = get_attachments_id(mail_service, 'me', emails_ids)
+    # Decoding test:
+    # ASCII = file_data['data'][0].encode('ASCII')
+    # decoded = base64.urlsafe_b64decode(ASCII)
+    # c = 0
     # singlefilename = file_data['filename'][0]
     # singledata = file_data['as_bytes'][0]
 
@@ -283,8 +275,8 @@ def main():
     #             base64.urlsafe_b64decode(mail_attachment_parts[i]['body']['attachmentId'] + "==="))
     #         attachment_data.append(mail_attachment_parts[i]['body']['attachmentId'] + "===")
 
-    # with open(singlefilename, 'bw') as file:
-    #     file.write(singledata)
+    # with open(jakiesascii, 'bw') as file:
+    #     file.write(jakiesascii)
 
 
 if __name__ == '__main__':
