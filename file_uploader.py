@@ -114,9 +114,9 @@ def get_attachments(mail_service, user_id, emails_ids):
             mail_data.append(data)
             try:
                 # If attachment doesnt exist then don't try get it.
-                # Ranges start at 1, because 0 don't include anything useful.
                 for email in mail_data:
                     if 'parts' in email['payload']:
+                        # Ranges start at 1, because 0 don't include anything useful.
                         for i in range(1, (len(email['payload']['parts']))):
                             parts = email['payload']['parts'][i]
                             filename.append((parts['filename']))
