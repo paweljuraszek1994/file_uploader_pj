@@ -242,10 +242,14 @@ def main():
     # file1.SetContentFile('pliczekdosciagniecia.txt')
     # file1.Upload()
 
+
+
+
     filename = []
     attachment_data_as_bytes = []
     attachment_data = []
     mail_attachment_parts=[]
+    # mail_data has all data from selected email:
     for ids in emails_id:
         mail_data = (mail_service.users().messages().get(userId='me', id=ids, format='full').execute())
         mail_attachment_parts = mail_data['payload']['parts']
