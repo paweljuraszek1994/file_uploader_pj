@@ -12,12 +12,6 @@ from googleapiclient.discovery import build
 from apiclient import errors
 from email.mime.text import MIMEText
 
-# If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly',
-          'https://www.googleapis.com/auth/gmail.send',
-          'https://www.googleapis.com/auth/drive']
-
-
 def create_message(sender, to, subject, message_text):
     """Create a message for an email.
 
