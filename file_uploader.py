@@ -9,23 +9,24 @@ from googleapiclient.discovery import build
 from apiclient import errors
 from email.mime.text import MIMEText
 
+
 # Unused imports:
 # import pickle
 # from google_auth_oauthlib.flow import InstalledAppFlow
 # from google.auth.transport.requests import Request
 # from googleapiclient.http import MediaFileUpload
 
+# TODO Make proper error handlers:
 
 def create_message(sender, to, subject, message_text):
-    """Create a message for an email.
+    """ Create a message for an email.
     Args:
-      sender: Email address of the sender.
-      to: Email address of the receiver.
-      subject: The subject of the email message.
-      message_text: The text of the email message.
+        sender: Email address of the sender.
+        to: Email address of the receiver.
+        subject: The subject of the email message.
+        message_text: The text of the email message.
     Returns:
-      An object containing a base64url encoded email object.
-    """
+        An object containing a base64url encoded email object. """
     message = MIMEText(message_text)
     message['to'] = to
     message['from'] = sender
@@ -35,14 +36,13 @@ def create_message(sender, to, subject, message_text):
 
 
 def send_message(mail_service, user_id, message):
-    """Send an email message.
+    """ Send an email message.
     Args:
-      mail_service: Authorized Gmail API mail_service instance.
-      user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-      message: Message to be sent.
+        mail_service: Authorized Gmail API instance.
+        user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+        message: Message to be sent.
     Returns:
-      Sent Message.
-    """
+        Sent Message. """
     try:
         message = (mail_service.users().messages().send(userId=user_id, body=message).execute())
         print('Message Id: %s' % message['id'])
@@ -52,16 +52,15 @@ def send_message(mail_service, user_id, message):
 
 
 def ids_of_messages_matching_query(mail_service, user_id, query_list):
-    """List all Messages of the user's mailbox matching the query.
+    """ List all Messages of the user's mailbox matching the query.
     Args:
-    mail_service: Authorized Gmail API mail_service instance.
-    user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-    query_list: String list used to filter messages returned.
-    Eg.- ['from:user@some_domain.com'] for Messages from a particular sender.
+        mail_service: Authorized Gmail API instance.
+        user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+        query_list: String list used to filter messages returned.
+        Eg.- ['from:user@some_domain.com'] for Messages from a particular sender.
     Returns:
-    List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
-    you must use get with the appropriate ID to get the details of a Message.
-    """
+        List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
+        you must use to get the details of a Message. """
     emails_id = []
     matches = []
     try:
@@ -83,14 +82,15 @@ def ids_of_messages_matching_query(mail_service, user_id, query_list):
     return emails_id
 
 
-def get_attachments_data(mail_service, user_id, emails_ids):
-    """Get and store attachment from Message with given id.
+def get_attachments_ids(mail_service, user_id, emails_ids):
+    """ Get all attachments IDs from provided emails IDs.
     Args:
-      mail_service: Authorized Gmail API mail_service instance.
+      mail_service: Authorized Gmail API instance.
       user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
       emails_ids: IDs of Messages containing attachments.
-      Return:
-        Attachments IDs.
+    Return:
+        All attachments IDs contained in provided emails_ids in form of dictionary:
+        {'Emails IDs':[], 'Attachments IDs':[], 'Attachments file names':[]}.
     """
     attachments_file_names = []
     emails_id = []
@@ -118,19 +118,16 @@ def get_attachments_data(mail_service, user_id, emails_ids):
 
 
 def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_folder_id, save=False):
-    # TODO work in progress
-    """Get and store attachment from Message with given id.
-
+    """ Get and save attachments on user GDrive, with option to save them on hard drive.
     Args:
-      mail_service: Authorized Google mail API instance.
-      py_drive: Authorized Google drive API instance created by PyDrive.
-      user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-      attachment_data: IDs of emails with attachments, attachments ID's and attachment file names.
-      drive_folder_id: ID of folder in drive where attachments will be stored.
-      save: Save files on hard drive?
+        mail_service: Authorized Gmail API instance.
+        py_drive: Authorized GDrive API instance created by PyDrive.
+        user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+        attachment_data: IDs of emails with attachments, attachments IDs and attachment file names.
+        drive_folder_id: ID of folder in GDrive where attachments will be stored.
+        save: Save files on hard disk: True/False.
       Return:
-        Attachment file.
-    """
+        Encoded attachments files. """
     files = []
     try:
         # Has to be in range function to be able to iterate over.
@@ -153,34 +150,18 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
 
-    # path = part['filename']
-    #
-    # with open(path, 'w') as f:
-    #     f.write(file_data)
-    # # Save to file:
-    # path = ''.join(['C:\somefilefun'], part['filename']])
-    # f = open(path, 'w')
-    # f.write(file_data)
-    # f.close()
-
-    # TODO code prone to errors - make proper error handler:
-    # except errors:
-    #     print('Unknown error, probably no attachment in emails')
-
 
 def search_for_file_id(drive_service, type_of_file, name_of_file):
-    """Output id of file with exact name and matching type.
-
+    """ Output id of file or folder with exact name and matching type.
+        If folder doesn't exist then create one and return it's ID.
     Args:
-    drive_service: Authorized Gmail API drive_service instance.
-    type_of_file: Query used to filter types of files returned:
-                  https://developers.google.com/drive/api/v3/search-files
-    name_of_file: String used to filter messages returned.
-    Eg.- 'from:user@some_domain.com' for Messages from a particular sender.
-
+        drive_service: Authorized GDrive API instance.
+        type_of_file: Query used to filter types of files returned:
+                      https://developers.google.com/drive/api/v3/search-files
+    name_of_file: String used to filter messages or folders returned.
+        Eg.- 'from:user@some_domain.com' for Messages from a particular sender.
     Returns:
-    Id of file
-    """
+        Id of file or folder. """
     try:
         page_token = None
         while True:
@@ -189,7 +170,9 @@ def search_for_file_id(drive_service, type_of_file, name_of_file):
                                                        pageToken=page_token).execute(),
             if page_token is None:
                 break
-        if not searched_file:
+        # If folder doesn't exist and user try to get ID, then create that folder and return ID.
+        # TODO if folder is trashed function should un-trash it
+        if not searched_file and type_of_file == "mimeType='application/vnd.google-apps.folder'":
             searched_file_id = create_new_folder(drive_service, name_of_file, [])
             return searched_file_id
         else:
@@ -202,17 +185,13 @@ def search_for_file_id(drive_service, type_of_file, name_of_file):
 
 
 def create_new_folder(drive_service, folder_name, parent_folder_id):
-    """
-        Create folder on Google Drive
-
+    """ Create folder on Google Drive
     Args:
-    drive: Authorized Gmail API drive_service instance.
-    folder_name: User's email address. The special value "me" can be used to indicate the authenticated user.
-    parent_folder_id(optional): String used to filter messages returned.
-
+        drive: Authorized Gmail API drive_service instance.
+        folder_name: User's email address. The special value "me" can be used to indicate the authenticated user.
+        parent_folder_id(optional): String used to filter messages returned.
     Returns:
-    Create folder and return it's ID
-    """
+        Create folder and return it's ID. """
     try:
         if not parent_folder_id:
             folder_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
@@ -248,18 +227,19 @@ def main():
     # body = create_message(email_sender, email_receivers, email_subject, email_content)
     # mail_service.users().messages().send(userId='me', body=body).execute()
 
-    # Quick testing place:
-
+    # File_uploader example:
+    # Search for emails that contain any items in query list, then save them to desired folder in google drive.
     # Check for any emails matching query:
     query = ['faktura']
     emails_ids = ids_of_messages_matching_query(mail_service, 'me', query)
     # Search for folder ID:
     folder_name = 'Folder na faktury'
-    folderid = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", folder_name))
+    folder_id = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", folder_name))
     # Data from emails:
-    attachment_data = get_attachments_data(mail_service, 'me', emails_ids)
+    attachment_data = get_attachments_ids(mail_service, 'me', emails_ids)
     # Save stuff on drive and hard disk:
-    save_attachments(mail_service, py_drive, 'me', attachment_data, folderid, save=True)
+    save_attachments(mail_service, py_drive, 'me', attachment_data, folder_id, save=True)
+
 
 if __name__ == '__main__':
     main()
