@@ -1,16 +1,19 @@
 from __future__ import print_function
-import pickle
 import os
 import base64
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
+
 from pydrive.drive import GoogleDrive
 from pydrive.auth import GoogleAuth
 
-from googleapiclient.http import MediaFileUpload
 from googleapiclient.discovery import build
 from apiclient import errors
 from email.mime.text import MIMEText
+
+# Unused imports:
+# import pickle
+# from google_auth_oauthlib.flow import InstalledAppFlow
+# from google.auth.transport.requests import Request
+# from googleapiclient.http import MediaFileUpload
 
 
 def create_message(sender, to, subject, message_text):
@@ -80,7 +83,7 @@ def ids_of_messages_matching_query(mail_service, user_id, query_list):
     return emails_id
 
 
-def get_attachments_id(mail_service, user_id, emails_ids):
+def get_attachments_data(mail_service, user_id, emails_ids):
     """Get and store attachment from Message with given id.
     Args:
       mail_service: Authorized Gmail API mail_service instance.
@@ -114,18 +117,21 @@ def get_attachments_id(mail_service, user_id, emails_ids):
             'Attachments file names': attachments_file_names}
 
 
-def save_attachments(mail_service, user_id, attachment_data, save=None):
+def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_folder_id, save=False):
     # TODO work in progress
     """Get and store attachment from Message with given id.
 
     Args:
-      mail_service: Authorized Gmail API mail_service instance.
+      mail_service: Authorized Google mail API instance.
+      py_drive: Authorized Google drive API instance created by PyDrive.
       user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
       attachment_data: IDs of emails with attachments, attachments ID's and attachment file names.
-      save: Save files on hard drive? Default yes.
+      drive_folder_id: ID of folder in drive where attachments will be stored.
+      save: Save files on hard drive?
       Return:
         Attachment file.
     """
+    files = []
     try:
         # Has to be in range function to be able to iterate over.
         for i in range(0, len(attachment_data['Attachments IDs'])):
@@ -134,10 +140,15 @@ def save_attachments(mail_service, user_id, attachment_data, save=None):
                                                                      id=attachment_data['Attachments IDs'][i]).execute()
             file_data = base64.urlsafe_b64decode(file['data'].encode('UTF-8'))
             path = attachment_data['Attachments file names'][i]
+            files.append(file_data)
+            with open(path, 'bw') as f:
+                f.write(file_data)
+            drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
+            drive_file.SetContentFile(path)
+            drive_file.Upload()
             if not save:
-                with open(path, 'bw') as f:
-                    f.write(file_data)
-        return file_data
+                os.remove(path)
+        return files
 
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
@@ -219,13 +230,13 @@ def create_new_folder(drive_service, folder_name, parent_folder_id):
 
 
 def main():
-    gauth = GoogleAuth()
-    gauth.LocalWebserverAuth()
-    gauth.Authorize()
+    google_auth = GoogleAuth()
+    google_auth.LocalWebserverAuth()
+    google_auth.Authorize()
 
-    mail_service = build('gmail', 'v1', credentials=gauth.credentials)  # Gmail API
-    drive_service = build('drive', 'v3', credentials=gauth.credentials)  # Drive API
-    # drive = GoogleDrive(gauth)  # PyDrive
+    mail_service = build('gmail', 'v1', credentials=google_auth.credentials)  # Gmail API
+    drive_service = build('drive', 'v3', credentials=google_auth.credentials)  # Drive API
+    py_drive = GoogleDrive(google_auth)  # PyDrive Drive API
 
     # Examples:
     # Send email example:
@@ -240,93 +251,15 @@ def main():
     # Quick testing place:
 
     # Check for any emails matching query:
-    query = ['trzyfaktury']
-
+    query = ['faktura']
     emails_ids = ids_of_messages_matching_query(mail_service, 'me', query)
-    c = 0
-    # simple debug: attachment data fetch
-    # filename = []
-    # attachment_data_as_bytes = []
-    # attachment_data = []
-    # mail_data = []
-    # # Iterate over emails_ids and fetch their data:
-    # for ids in emails_ids:
-    #     data = mail_service.users().messages().get(userId='me', id=ids, format='full').execute()
-    #     mail_data.append(data)
-    #     # If attachment doesnt exist then don't try get it.
-    #     # Ranges start at 1, because 0 don't include anything useful.
-    #     for email in mail_data:
-    #         if 'parts' in email['payload']:
-    #             for i in range(1, (len(email['payload']['parts']))):
-    #                 parts = email['payload']['parts'][i]
-    #                 filename.append((parts['filename']))
-    #                 attachment_data_as_bytes.append(
-    #                     base64.urlsafe_b64decode(parts['body']['attachmentId'] + "==="))
-    #                 attachment_data.append(parts['body']['attachmentId'] + "===")
-
     # Search for folder ID:
-    folderid = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", 'Folder na faktury'))
-
+    folder_name = 'Folder na faktury'
+    folderid = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", folder_name))
     # Data from emails:
-
-    attachment_data = get_attachments_id(mail_service, 'me', emails_ids)
-
-    # if i in range(0, len(attachment_data['Attachments IDs'])):
-    #     print(i)
-
-    # print(message_id=attachment_data['Emails IDs'][i])
-    # print(id=attachment_data['Attachments IDs'][i])
-    # print(path=attachment_data['Attachments file names'][i])
-
-    files = save_attachments(mail_service, 'me', attachment_data, None)
-    # Decoding test:
-    # ASCII = file_data['data'][0].encode('ASCII')
-    # decoded = base64.urlsafe_b64decode(ASCII)
-    # c = 0
-    # singlefilename = file_data['filename'][0]
-    # singledata = file_data['as_bytes'][0]
-
-    # file1 = drive.CreateFile()
-    # file1.SetContentFile('pliczekdosciagniecia.txt')
-    # file1.Upload()
-
-    # filename = []
-    # attachment_data_as_bytes = []
-    # attachment_data = []
-    # mail_attachment_parts = []
-    # mail_data has all data from selected email:
-    # for ids in emails_ids:
-    #     mail_data = (mail_service.users().messages().get(userId='me', id=ids, format='full').execute())
-    #     mail_attachment_parts = mail_data['payload']['parts']
-    #     for i in range(1, (len(mail_attachment_parts))):
-    #         filename.append((mail_attachment_parts[i]['filename']))
-    #         attachment_data_as_bytes.append(
-    #             base64.urlsafe_b64decode(mail_attachment_parts[i]['body']['attachmentId'] + "==="))
-    #         attachment_data.append(mail_attachment_parts[i]['body']['attachmentId'] + "===")
-
-    # with open(jakiesascii, 'bw') as file:
-    #     file.write(jakiesascii)
-
+    attachment_data = get_attachments_data(mail_service, 'me', emails_ids)
+    # Save stuff on drive and hard disk:
+    save_attachments(mail_service, py_drive, 'me', attachment_data, folderid, save=True)
 
 if __name__ == '__main__':
     main()
-
-    # OLD authorization:
-    # creds = None
-    # The file token.pickle stores the user's access and refresh tokens, and is
-    # created automatically when the authorization flow completes for the first
-    # time.
-    # if os.path.exists('token.pickle'):
-    #     with open('token.pickle', 'rb') as token:
-    #         creds = pickle.load(token)
-    # # If there are no (valid) credentials available, let the user log in.
-    # if not creds or not creds.valid:
-    #     if creds and creds.expired and creds.refresh_token:
-    #         creds.refresh(Request())
-    #     else:
-    #         flow = InstalledAppFlow.from_client_secrets_file(
-    #             'client_secrets.json', SCOPES)
-    #         creds = flow.run_local_server(port=0)
-    #     # Save the credentials for the next run
-    #     with open('token.pickle', 'wb') as token:
-    #         pickle.dump(creds, token)
