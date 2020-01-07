@@ -90,6 +90,7 @@ def get_attachments_id(mail_service, user_id, emails_ids):
         Attachments IDs.
     """
     attachments_file_names = []
+    emails_id = []
     attachment_ids = []
     mail_data = []
     try:
@@ -107,22 +108,40 @@ def get_attachments_id(mail_service, user_id, emails_ids):
                 parts = email['payload']['parts'][i]
                 attachments_file_names.append((parts['filename']))
                 attachment_ids.append(parts['body']['attachmentId'])
-    # mail_data is leftover for debug purposes.
-    return {'mail_data': mail_data, 'Attachment IDs': attachment_ids, 'Attachments file_names': attachments_file_names}
+                emails_id.append(email['id'])
+    # Return of three lists to iterate over when saving:
+    return {'Emails IDs': emails_id, 'Attachments IDs': attachment_ids,
+            'Attachments file names': attachments_file_names}
 
 
-def save_attachments_on_hard_drive(mail_service, user_id, attachments_ids, store_dir):
+def save_attachments(mail_service, user_id, attachment_data, save=None):
     # TODO work in progress
     """Get and store attachment from Message with given id.
 
     Args:
       mail_service: Authorized Gmail API mail_service instance.
       user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-      attachments_ids: IDs of attachments to download.
+      attachment_data: IDs of emails with attachments, attachments ID's and attachment file names.
+      save: Save files on hard drive? Default yes.
       Return:
         Attachment file.
     """
-    attachment_file=mail_service.users().messages().attachments().get(userId=user_id,id=attachments_ids).execute()
+    try:
+        # Has to be in range function to be able to iterate over.
+        for i in range(0, len(attachment_data['Attachments IDs'])):
+            file = mail_service.users().messages().attachments().get(userId=user_id,
+                                                                     messageId=attachment_data['Emails IDs'][i],
+                                                                     id=attachment_data['Attachments IDs'][i]).execute()
+            file_data = base64.urlsafe_b64decode(file['data'].encode('UTF-8'))
+            path = attachment_data['Attachments file names'][i]
+            if not save:
+                with open(path, 'bw') as f:
+                    f.write(file_data)
+        return file_data
+
+    except errors.HttpError as error:
+        print('An error occurred: %s' % {error})
+
     # path = part['filename']
     #
     # with open(path, 'w') as f:
@@ -249,7 +268,17 @@ def main():
     folderid = (search_for_file_id(drive_service, "mimeType='application/vnd.google-apps.folder'", 'Folder na faktury'))
 
     # Data from emails:
-    file_data = get_attachments_id(mail_service, 'me', emails_ids)
+
+    attachment_data = get_attachments_id(mail_service, 'me', emails_ids)
+
+    # if i in range(0, len(attachment_data['Attachments IDs'])):
+    #     print(i)
+
+    # print(message_id=attachment_data['Emails IDs'][i])
+    # print(id=attachment_data['Attachments IDs'][i])
+    # print(path=attachment_data['Attachments file names'][i])
+
+    files = save_attachments(mail_service, 'me', attachment_data, None)
     # Decoding test:
     # ASCII = file_data['data'][0].encode('ASCII')
     # decoded = base64.urlsafe_b64decode(ASCII)
