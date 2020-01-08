@@ -201,7 +201,7 @@ def search_for_file_id(drive_service, type_of_file, name_of_file):
 def create_new_folder(drive_service, folder_name, parent_folder_id):
     """ Create folder on Google Drive
     Args:
-        drive: Authorized Gmail API drive_service instance.
+        drive_service: Authorized Gmail API drive_service instance.
         folder_name: User's email address. The special value "me" can be used to indicate the authenticated user.
         parent_folder_id(optional): String used to filter messages returned.
     Returns:
