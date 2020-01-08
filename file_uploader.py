@@ -104,6 +104,7 @@ def get_attachments_ids(mail_service, user_id, emails_ids):
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
         # If attachment doesnt exist then don't try get it.
+    print('Emails found: ' + str(len(mail_data)))
     for email in mail_data:
         try:
             if 'parts' in email['payload']:
@@ -118,6 +119,7 @@ def get_attachments_ids(mail_service, user_id, emails_ids):
             # Error debug part:
             print('Subject: ' + email['payload']['headers'][19]['value'])
             print('ID: ' + email['id'])
+    print('Attachments found: ' + str(len(attachment_ids)))
 
     # Return of three lists to iterate over when saving:
     return {'Emails IDs': emails_id, 'Attachments IDs': attachment_ids,
@@ -136,6 +138,7 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
       Return:
         Encoded attachments files. """
     files = []
+    files_amount = 0
     try:
         # Has to be in range function to be able to iterate over.
         for i in range(0, len(attachment_data['Attachments IDs'])):
@@ -145,6 +148,7 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
             file_data = base64.urlsafe_b64decode(file['data'].encode('UTF-8'))
             path = attachment_data['Attachments file names'][i]
             files.append(file_data)
+
             if not os.path.splitext(path)[1] == '.jpg' and path:
                 with open(path, 'bw') as f:
                     f.write(file_data)
@@ -153,6 +157,8 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
                 drive_file.Upload()
                 if not save:
                     os.remove(path)
+                files_amount += 1
+        print('Files saved: ' + str(files_amount))
         return files
 
     except errors.HttpError as error:
