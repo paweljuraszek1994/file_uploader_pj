@@ -105,16 +105,23 @@ def get_attachments_ids(mail_service, user_id, emails_ids):
         print('An error occurred: %s' % {error})
         # If attachment doesnt exist then don't try get it.
     for email in mail_data:
-        if 'parts' in email['payload']:
-            # Ranges start at 1, because 0 include body.
-            for i in range(1, (len(email['payload']['parts']))):
-                parts = email['payload']['parts'][i]
-                attachments_file_names.append((parts['filename']))
-                attachment_ids.append(parts['body']['attachmentId'])
-                emails_id.append(email['id'])
+        try:
+            if 'parts' in email['payload']:
+                # Ranges start at 1, because 0 include body.
+                for i in range(1, (len(email['payload']['parts']))):
+                    parts = email['payload']['parts'][i]
+                    attachments_file_names.append((parts['filename']))
+                    attachment_ids.append(parts['body']['attachmentId'])
+                    emails_id.append(email['id'])
+        except KeyError:
+            print('KeyError line 117: No attachment in email:')
+            # Error debug part:
+            print('Subject: ' + email['payload']['headers'][19]['value'])
+            print('ID: ' + email['id'])
+
     # Return of three lists to iterate over when saving:
     return {'Emails IDs': emails_id, 'Attachments IDs': attachment_ids,
-            'Attachments file names': attachments_file_names}
+            'Attachments file names': attachments_file_names, 'mail data': mail_data}
 
 
 def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_folder_id, save=False):
@@ -138,13 +145,14 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
             file_data = base64.urlsafe_b64decode(file['data'].encode('UTF-8'))
             path = attachment_data['Attachments file names'][i]
             files.append(file_data)
-            with open(path, 'bw') as f:
-                f.write(file_data)
-            drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
-            drive_file.SetContentFile(path)
-            drive_file.Upload()
-            if not save:
-                os.remove(path)
+            if not os.path.splitext(path)[1] == '.jpg' and path:
+                with open(path, 'bw') as f:
+                    f.write(file_data)
+                drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
+                drive_file.SetContentFile(path)
+                drive_file.Upload()
+                if not save:
+                    os.remove(path)
         return files
 
     except errors.HttpError as error:
@@ -230,7 +238,7 @@ def main():
     # File_uploader example:
     # Search for emails that contain any items in query list, then save them to desired folder in google drive.
     # Check for any emails matching query:
-    query = ['faktura']
+    query = ['label:faktury ']
     emails_ids = ids_of_messages_matching_query(mail_service, 'me', query)
     # Search for folder ID:
     folder_name = 'Folder na faktury'
