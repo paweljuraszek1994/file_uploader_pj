@@ -75,7 +75,7 @@ def ids_of_messages_matching_query(mail_service, user_id, query_list):
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
 
-    # Tricks remove duplicates, to unpack and strip all unnecessary data:
+    # Tricks to remove duplicates, to unpack and strip all unnecessary data:
     matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
     for i in matching_emails:
         emails_id.append(i['id'])
@@ -97,28 +97,29 @@ def get_attachments_ids(mail_service, user_id, emails_ids):
     attachment_ids = []
     mail_data = []
     try:
-        # Iterate over emails_ids and fetch their data:
+        # Iterate over emails_ids and get their data:
         for ids in emails_ids:
             data = mail_service.users().messages().get(userId=user_id, id=ids, format='full').execute()
             mail_data.append(data)
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
-        # If attachment doesnt exist then don't try get it.
+        # If attachment doesn't exist then don't try to get them.
     print('Emails found: ' + str(len(mail_data)))
     for email in mail_data:
-        try:
-            if 'parts' in email['payload']:
-                # Ranges start at 1, because 0 include body.
-                for i in range(1, (len(email['payload']['parts']))):
-                    parts = email['payload']['parts'][i]
-                    attachments_file_names.append((parts['filename']))
-                    attachment_ids.append(parts['body']['attachmentId'])
-                    emails_id.append(email['id'])
-        except KeyError:
-            print('KeyError line 117: No attachment in email:')
-            # Error debug part:
-            print('Subject: ' + email['payload']['headers'][19]['value'])
-            print('ID: ' + email['id'])
+        payload = email.get("payload", {})
+        parts = payload.get("parts", [])
+        for part in parts[1:]:
+            try:
+                filename = part.get('filename')
+                attachment_id = part['body']['attachmentId']
+                email_id = email['id']
+            except KeyError:
+                print('KeyError line 117: No attachment in email:')
+                print('ID: ' + email['id'])
+            else:
+                attachments_file_names.append(filename)
+                attachment_ids.append(attachment_id)
+                emails_id.append(email_id)
     print('Attachments found: ' + str(len(attachment_ids)))
 
     # Return of three lists to iterate over when saving:
@@ -172,12 +173,13 @@ def search_for_file_id(drive_service, type_of_file, name_of_file):
         drive_service: Authorized GDrive API instance.
         type_of_file: Query used to filter types of files returned:
                       https://developers.google.com/drive/api/v3/search-files
-    name_of_file: String used to filter messages or folders returned.
+        name_of_file: String used to filter messages or folders returned.
         Eg.- 'from:user@some_domain.com' for Messages from a particular sender.
     Returns:
         Id of file or folder. """
     try:
         page_token = None
+
         while True:
             searched_file = drive_service.files().list(q=type_of_file, pageSize=100, spaces='drive',
                                                        fields='nextPageToken, files(id,name)',
@@ -186,14 +188,13 @@ def search_for_file_id(drive_service, type_of_file, name_of_file):
                 break
         # If folder doesn't exist and user try to get ID, then create that folder and return ID.
         # TODO if folder is trashed function should un-trash it
-        if not searched_file and type_of_file == "mimeType='application/vnd.google-apps.folder'":
-            searched_file_id = create_new_folder(drive_service, name_of_file, [])
-            return searched_file_id
-        else:
+        if searched_file:
             for name_value in searched_file[0]['files']:
                 if name_value['name'] == name_of_file:
                     searched_file_id = name_value['id']
                     return searched_file_id
+        searched_file_id = create_new_folder(drive_service, name_of_file, [])
+        return searched_file_id
     except errors.HttpError as error:
         print('An error occurred: %s' % {error})
 
@@ -244,7 +245,7 @@ def main():
     # File_uploader example:
     # Search for emails that contain any items in query list, then save them to desired folder in google drive.
     # Check for any emails matching query:
-    query = ['label:faktury ']
+    query = ['label:Faktury']
     emails_ids = ids_of_messages_matching_query(mail_service, 'me', query)
     # Search for folder ID:
     folder_name = 'Folder na faktury'
