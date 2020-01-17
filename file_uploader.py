@@ -1,13 +1,14 @@
 from __future__ import print_function
 import os
 import base64
-
 from pydrive.drive import GoogleDrive
 from pydrive.auth import GoogleAuth
 
 from googleapiclient.discovery import build
 from apiclient import errors
 from email.mime.text import MIMEText
+
+from datetime import date
 
 
 # Unused imports:
@@ -18,23 +19,59 @@ from email.mime.text import MIMEText
 
 # TODO Make proper error handlers:
 class FileUploader:
-    # Shared class variables:
-    #
+    # Default user = authenticated user.
+    user_id = 'me'
+    folder_name = ''
+    execute_date = ''
+    query_list = []
+
     def __init__(self):
-        # Authenticate user and build gmail and drive instances:
+        """ Initialize class, update current date and prepare default folder name. """
+        self.execute_date = date.today().strftime("%B %d, %Y")
+        self.folder_name = ('Files uploaded ' + date.today().strftime("%B %d, %Y"))
+        self.query_list = []
+        # First authentication, may require user inputs in browser:
+        self.google_auth = self.authentication()
+        # Build gmail and drive instances:
+        self.mail_service = build('gmail', 'v1', credentials=self.google_auth.credentials)  # Gmail API
+        self.drive_service = build('drive', 'v3', credentials=self.google_auth.credentials)  # Drive API
+        self.py_drive = GoogleDrive(self.google_auth)  # PyDrive Drive API
+
+    @staticmethod
+    def authentication():
         google_auth = GoogleAuth()
         google_auth.LocalWebserverAuth()
         google_auth.Authorize()
-        self.mail_service = build('gmail', 'v1', credentials=google_auth.credentials)  # Gmail API
-        self.drive_service = build('drive', 'v3', credentials=google_auth.credentials)  # Drive API
-        self.py_drive = GoogleDrive(google_auth)  # PyDrive Drive API
+        return google_auth
 
-        query = ['label:Faktury']
-        emails_ids = self.ids_of_messages_matching_query(self.mail_service, 'me', query)
-        # Search for folder ID:
-        folder_name = 'Folder na faktury'
-        folder_id = (
-            self.search_for_file_id(self.drive_service, "mimeType='application/vnd.google-apps.folder'", folder_name))
+    def refresh_services(self):
+        self.google_auth = self.authentication()
+        self.mail_service = build('gmail', 'v1', credentials=self.google_auth.credentials)  # Gmail API
+        self.drive_service = build('drive', 'v3', credentials=self.google_auth.credentials)  # Drive API
+        self.py_drive = GoogleDrive(self.google_auth)  # PyDrive Drive API
+
+    def execute(self, query_list=None, folder_name=('Files uploaded ' + date.today().strftime("%B %d, %Y"))):
+        """ Execute file upload
+        Args:
+            query_list: String list used to filter emails. If not specified then use last known query_list
+            folder_name: Folder name in which filed should be uploaded.
+                    If not specified then use default name:'Files uploaded ' + date.today
+         """
+        # To avoid ended session, refresh credentials if they are expired and recreate services:
+        self.refresh_services()
+        # Check query_list:
+        if query_list is None:
+            pass
+        else:
+            self.query_list = query_list
+        # Update execute date and folder name:
+        self.execute_date = date.today().strftime("%B %d, %Y")
+        self.folder_name = folder_name
+        # Get emails_ids matching query_list:
+        emails_ids = self.ids_of_messages_matching_query(self.mail_service, self.user_id, self.query_list)
+        # Search for folder ID with given foldername,
+        folder_id = (self.search_for_file_id(self.drive_service,
+                                             "mimeType='application/vnd.google-apps.folder'", self.folder_name))
         # Data from emails:
         attachment_data = self.get_attachments_ids(self.mail_service, 'me', emails_ids)
         # Save stuff on drive and hard disk:
@@ -273,7 +310,9 @@ def main():
     # # Save stuff on drive and hard disk:
     # save_attachments(mail_service, py_drive, 'me', attachment_data, folder_id, save=True)
 
-    FileUploader()
+    queries = ['label:Faktury']
+    folder_name = 'Folder na faktury'
+    FileUploader().execute(queries, folder_name)
 
 
 if __name__ == '__main__':
