@@ -61,7 +61,7 @@ def ids_of_messages_matching_query(mail_service, user_id, query_list):
     Returns:
         List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
         you must use to get the details of a Message. """
-    emails_id = []
+    emails_ids = []
     matches = []
     try:
         for query in query_list:
@@ -78,8 +78,8 @@ def ids_of_messages_matching_query(mail_service, user_id, query_list):
     # Tricks to remove duplicates, to unpack and strip all unnecessary data:
     matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
     for i in matching_emails:
-        emails_id.append(i['id'])
-    return emails_id
+        emails_ids.append(i['id'])
+    return emails_ids
 
 
 def get_attachments_ids(mail_service, user_id, emails_ids):
