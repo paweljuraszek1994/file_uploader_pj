@@ -140,12 +140,15 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
         Encoded attachments files. """
     files = []
     files_amount = 0
-    try:
-        # Has to be in range function to be able to iterate over.
-        for i in range(0, len(attachment_data['Attachments IDs'])):
+    # Has to be in range function to be able to iterate over.
+    for i in range(0, len(attachment_data['Attachments IDs'])):
+        try:
             file = mail_service.users().messages().attachments().get(userId=user_id,
                                                                      messageId=attachment_data['Emails IDs'][i],
                                                                      id=attachment_data['Attachments IDs'][i]).execute()
+        except errors.HttpError as error:
+            print('An error occurred: %s' % {error})
+        else:
             file_data = base64.urlsafe_b64decode(file['data'].encode('UTF-8'))
             path = attachment_data['Attachments file names'][i]
             files.append(file_data)
@@ -161,9 +164,6 @@ def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_fol
                 files_amount += 1
         print('Files saved: ' + str(files_amount))
         return files
-
-    except errors.HttpError as error:
-        print('An error occurred: %s' % {error})
 
 
 def search_for_file_id(drive_service, type_of_file, name_of_file):
