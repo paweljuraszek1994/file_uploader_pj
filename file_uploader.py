@@ -47,11 +47,11 @@ class FileUploader:
         self.py_drive = GoogleDrive(self.google_auth)  # PyDrive Drive API
 
     def upload_files(self, query_list=None, folder_name=('Files uploaded ' + date.today().strftime("%B %d, %Y"))):
-        """ Execute file upload
+        """ Execute file upload.
         Args:
-            query_list: String list used to filter emails. If not specified then use last known query_list
+            query_list: String list used to filter emails. If not specified then use empty list to avoid error.
             folder_name: Folder name in which filed should be uploaded.
-                    If not specified then use default name:'Files uploaded ' + date.today
+                    If not specified then use default name:'Files uploaded ' + date.today.
          """
         if query_list is not None:
             self.query_list = query_list
@@ -61,81 +61,35 @@ class FileUploader:
         self.refresh_services()
         # Update execute date and folder name:
         self.execute_date = date.today().strftime("%B %d, %Y")
+        print('Today is ' + self.execute_date)
         self.folder_name = folder_name
+        print('Attachments are uploaded to: "' + self.folder_name + '"')
         # Get emails_ids matching query_list:
-        emails_ids = self.ids_of_messages_matching_query(self.mail_service, self.user_id, self.query_list)
+        emails_ids = self.ids_of_messages_matching_query()
         # Search for folder ID with given foldername,
         folder_id = (self.search_for_file_id(self.drive_service,
                                              "mimeType='application/vnd.google-apps.folder'", self.folder_name))
         # Data from emails:
         attachment_data = self.get_attachments_ids(self.mail_service, 'me', emails_ids)
         # Save stuff on drive and hard disk:
-        self.save_attachments(self.mail_service, self.py_drive, 'me', attachment_data, folder_id, save=True)
+        self.save_attachments(self.mail_service, self.py_drive, 'me', attachment_data, folder_id, save=False)
 
-    @staticmethod
-    def create_message(sender, to, subject, message_text):
-        """ Create a message for an email.
-        Args:
-            sender: Email address of the sender.
-            to: Email address of the receiver.
-            subject: The subject of the email message.
-            message_text: The text of the email message.
-        Returns:
-            An object containing a base64url encoded email object. """
-        message = MIMEText(message_text)
-        message['to'] = to
-        message['from'] = sender
-        message['subject'] = subject
-        message = base64.urlsafe_b64encode(message.as_bytes())
-        return {'raw': message.decode('utf-8')}
-
-    @staticmethod
-    def send_message(mail_service, user_id, message):
-        """ Send an email message.
-        Args:
-            mail_service: Authorized Gmail API instance.
-            user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-            message: Message to be sent.
-        Returns:
-            Sent Message. """
-        try:
-            message = (mail_service.users().messages().send(userId=user_id, body=message).execute())
-            print('Message Id: %s' % message['id'])
-            return message
-        except errors.HttpError as error:
-            print('An error occurred: %s' % {error})
-
-    # Send email example:
-
-    # email_sender = 'example@gmail.com'
-    # email_receivers = 'example@gmail.com'
-    # email_subject = 'Test'
-    # email_content = 'Hello, this is a test'
-    # body = create_message(email_sender, email_receivers, email_subject, email_content)
-    # mail_service.users().messages().send(userId='me', body=body).execute()
-
-    @staticmethod
-    def ids_of_messages_matching_query(mail_service, user_id, query_list):
+    def ids_of_messages_matching_query(self):
         """ List all Messages of the user's mailbox matching the query.
-        Args:
-            mail_service: Authorized Gmail API instance.
-            user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
-            query_list: String list used to filter messages returned.
-            Eg.- ['from:user@some_domain.com'] for Messages from a particular sender.
         Returns:
             List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
             you must use to get the details of a Message. """
         emails_ids = []
         matches = []
         try:
-            for query in query_list:
-                response = mail_service.users().messages().list(userId=user_id, q=query).execute()
+            for query in self.query_list:
+                response = self.mail_service.users().messages().list(userId=self.user_id, q=query).execute()
                 if 'messages' in response:
-                    matches.extend(response['messages'])
+                    matches.extend(response.get('messages', []))
                 while 'nextPageToken' in response:
                     page_token = response['nextPageToken']
-                    response = mail_service.users().messages().list(userId=user_id, q=query,
-                                                                    pageToken=page_token).execute()
+                    response = self.mail_service.users().messages().list(userId=self.user_id, q=query,
+                                                                         pageToken=page_token).execute()
                     matches.extend(response['messages'])
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
@@ -226,9 +180,12 @@ class FileUploader:
                     drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
                     drive_file.SetContentFile(path)
                     drive_file.Upload()
+                    files_amount += 1
+                    # Until PyDrive fix upload() method, then workaround to release file:
+                    drive_file.SetContentFile("nul")
                     if not save:
                         os.remove(path)
-                    files_amount += 1
+
         print('Files saved: ' + str(files_amount))
         return files
 
@@ -287,6 +244,48 @@ class FileUploader:
             return folder['id']
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
+
+    @staticmethod
+    def create_message(sender, to, subject, message_text):
+        """ Create a message for an email.
+        Args:
+            sender: Email address of the sender.
+            to: Email address of the receiver.
+            subject: The subject of the email message.
+            message_text: The text of the email message.
+        Returns:
+            An object containing a base64url encoded email object. """
+        message = MIMEText(message_text)
+        message['to'] = to
+        message['from'] = sender
+        message['subject'] = subject
+        message = base64.urlsafe_b64encode(message.as_bytes())
+        return {'raw': message.decode('utf-8')}
+
+    @staticmethod
+    def send_message(mail_service, user_id, message):
+        """ Send an email message.
+        Args:
+            mail_service: Authorized Gmail API instance.
+            user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
+            message: Message to be sent.
+        Returns:
+            Sent Message. """
+        try:
+            message = (mail_service.users().messages().send(userId=user_id, body=message).execute())
+            print('Message Id: %s' % message['id'])
+            return message
+        except errors.HttpError as error:
+            print('An error occurred: %s' % {error})
+
+    # Send email example:
+
+    # email_sender = 'example@gmail.com'
+    # email_receivers = 'example@gmail.com'
+    # email_subject = 'Test'
+    # email_content = 'Hello, this is a test'
+    # body = create_message(email_sender, email_receivers, email_subject, email_content)
+    # mail_service.users().messages().send(userId='me', body=body).execute()
 
 
 def main():
