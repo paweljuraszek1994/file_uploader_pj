@@ -19,51 +19,46 @@ from datetime import date
 
 # TODO Make proper error handlers:
 class FileUploader:
-    # Default user = authenticated user.
+    # Default user is authenticated user.
     user_id = 'me'
-    folder_name = ''
-    execute_date = ''
     query_list = []
+    google_auth = None
+    execute_date = date.today().strftime("%B %d, %Y")
+    folder_name = ('Files uploaded ' + date.today().strftime("%B %d, %Y"))
 
     def __init__(self):
-        """ Initialize class instance, update current date and prepare default folder name. """
-        self.execute_date = date.today().strftime("%B %d, %Y")
-        self.folder_name = ('Files uploaded ' + date.today().strftime("%B %d, %Y"))
-        self.query_list = []
-        # First authentication, may require user inputs in browser:
-        self.google_auth = self.authentication()
-        # Build gmail and drive instances:
+        """ Authenticate user for first time then build services.
+            First authentication will require user input in browser """
+        self.authentication()
         self.mail_service = build('gmail', 'v1', credentials=self.google_auth.credentials)  # Gmail API
         self.drive_service = build('drive', 'v3', credentials=self.google_auth.credentials)  # Drive API
         self.py_drive = GoogleDrive(self.google_auth)  # PyDrive Drive API
 
-    @staticmethod
-    def authentication():
-        google_auth = GoogleAuth()
-        google_auth.LocalWebserverAuth()
-        google_auth.Authorize()
-        return google_auth
+    def authentication(self):
+        self.google_auth = GoogleAuth()
+        self.google_auth.LocalWebserverAuth()
+        self.google_auth.Authorize()
 
     def refresh_services(self):
-        self.google_auth = self.authentication()
+        self.authentication()
+        # TODO Check if need to recreate services
         self.mail_service = build('gmail', 'v1', credentials=self.google_auth.credentials)  # Gmail API
         self.drive_service = build('drive', 'v3', credentials=self.google_auth.credentials)  # Drive API
         self.py_drive = GoogleDrive(self.google_auth)  # PyDrive Drive API
 
-    def execute(self, query_list=None, folder_name=('Files uploaded ' + date.today().strftime("%B %d, %Y"))):
+    def upload_files(self, query_list=None, folder_name=('Files uploaded ' + date.today().strftime("%B %d, %Y"))):
         """ Execute file upload
         Args:
             query_list: String list used to filter emails. If not specified then use last known query_list
             folder_name: Folder name in which filed should be uploaded.
                     If not specified then use default name:'Files uploaded ' + date.today
          """
-        # To avoid ended session, refresh credentials if they are expired and recreate services:
-        self.refresh_services()
-        # Check query_list:
-        if query_list is None:
-            pass
-        else:
+        if query_list is not None:
             self.query_list = query_list
+        else:
+            self.query_list = []
+        # To avoid ended session: If token expired then refresh.
+        self.refresh_services()
         # Update execute date and folder name:
         self.execute_date = date.today().strftime("%B %d, %Y")
         self.folder_name = folder_name
@@ -227,6 +222,7 @@ class FileUploader:
                 if not os.path.splitext(path)[1] == '.jpg' and path:
                     with open(path, 'bw') as f:
                         f.write(file_data)
+                    # TODO upload file directly from drive API
                     drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
                     drive_file.SetContentFile(path)
                     drive_file.Upload()
@@ -297,7 +293,7 @@ def main():
     # User inputs:
     queries = ['label:Faktury']
     folder_name = 'Folder na faktury'
-    FileUploader().execute(queries, folder_name)
+    FileUploader().upload_files(query_list=queries, folder_name=folder_name)
 
 
 if __name__ == '__main__':
