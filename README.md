@@ -15,10 +15,10 @@ Project is created with:
 * Python 3.8
 
 ## Status
-In minor development.
-Most of things that were necessary for script to work is already done.
-I will probably work on making unit tests. Just to learn how to make them.
-Reworks might be done as i gain more experience in python.
+In minor development.\
+Most of things that were necessary for script to work is already done.\
+I will probably work on making unit tests. Just to learn how to make them.\
+Reworks might be done as i gain more experience in python.\
 As well as some stuff marked as TODO, that is not critical for script to work.
 ## Sources:
 Documentations for used api and libraries.
