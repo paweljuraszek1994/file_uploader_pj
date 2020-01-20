@@ -108,15 +108,13 @@ class FileUploader:
         attachments_file_names = []
         emails_id = []
         attachment_ids = []
-        mail_data = []
         try:
             # Iterate over emails_ids and get their data:
-            for ids in emails_ids:
-                data = self.mail_service.users().messages().get(userId=self.user_id, id=ids, format='full').execute()
-                mail_data.append(data)
+            mail_data = [self.mail_service.users().messages().get(userId=self.user_id, id=ids, format='full').execute()
+                         for ids in emails_ids]
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
-            # If attachment doesn't exist then don't try to get them.
+        # If attachment doesn't exist then don't try to get them.
         print('Emails found: ' + str(len(mail_data)))
         for email in mail_data:
             payload = email.get("payload", {})
@@ -137,7 +135,7 @@ class FileUploader:
 
         # Return of three lists to iterate over when saving:
         return {'Emails IDs': emails_id, 'Attachments IDs': attachment_ids,
-                'Attachments file names': attachments_file_names, 'mail data': mail_data}
+                'Attachments file names': attachments_file_names}
 
     def save_attachments(self, attachment_data, drive_folder_id, save=False):
         # TODO rework of this function
@@ -216,7 +214,7 @@ class FileUploader:
     def create_new_folder(self, folder_name, parent_folder_id=None):
         """ Create folder on Google Drive
         Args:
-            folder_name: User's email address. The special value "me" can be used to indicate the authenticated user.
+            folder_name: name for created folder
             parent_folder_id(optional): String used to filter messages returned.
         Returns:
             Create folder and return it's ID. """
@@ -232,6 +230,7 @@ class FileUploader:
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
 
+    # Part of old code, but it might get useful some day:
     @staticmethod
     def create_message(sender, to, subject, message_text):
         """ Create a message for an email.
