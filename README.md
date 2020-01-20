@@ -1,4 +1,5 @@
-# File Uploader - script to automate downloading/uploading attachments from email to GDrive
+# File Uploader
+Script to automate downloading attachments from email and uploading them to GDrive
 
 ## Table of contents
 * [General info](#general-info)
