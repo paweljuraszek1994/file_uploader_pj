@@ -25,6 +25,7 @@ class FileUploader:
     google_auth = None
     execute_date = date.today().strftime("%B %d, %Y")
     folder_name = ('Files uploaded ' + date.today().strftime("%B %d, %Y"))
+    emails_ids = []
 
     def __init__(self):
         """ Authenticate user for first time then build services.
@@ -64,13 +65,13 @@ class FileUploader:
         print('Today is ' + self.execute_date)
         self.folder_name = folder_name
         print('Attachments are uploaded to: "' + self.folder_name + '"')
-        # Get emails_ids matching query_list:
-        emails_ids = self.ids_of_messages_matching_query()
-        # Search for folder ID with given foldername,
+        # Update emails_ids matching query_list:
+        self.ids_of_messages_matching_query()
+        # Search for folder ID with given folder name,
         folder_id = (self.search_for_file_id(self.drive_service,
                                              "mimeType='application/vnd.google-apps.folder'", self.folder_name))
         # Data from emails:
-        attachment_data = self.get_attachments_ids(self.mail_service, 'me', emails_ids)
+        attachment_data = self.get_attachments_ids(self.mail_service, 'me', self.emails_ids)
         # Save stuff on drive and hard disk:
         self.save_attachments(self.mail_service, self.py_drive, 'me', attachment_data, folder_id, save=False)
 
@@ -79,7 +80,6 @@ class FileUploader:
         Returns:
             List of Messages that match the criteria of the query. Note that the returned list contains Message IDs,
             you must use to get the details of a Message. """
-        emails_ids = []
         matches = []
         try:
             for query in self.query_list:
@@ -96,9 +96,7 @@ class FileUploader:
 
         # Tricks to remove duplicates, to unpack and strip all unnecessary data:
         matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
-        for i in matching_emails:
-            emails_ids.append(i['id'])
-        return emails_ids
+        self.emails_ids = [i['id'] for i in matching_emails]
 
     @staticmethod
     def get_attachments_ids(mail_service, user_id, emails_ids):
