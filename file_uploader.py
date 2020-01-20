@@ -68,12 +68,11 @@ class FileUploader:
         # Update emails_ids matching query_list:
         self.ids_of_messages_matching_query()
         # Search for folder ID with given folder name,
-        folder_id = (self.search_for_file_id(self.drive_service,
-                                             "mimeType='application/vnd.google-apps.folder'", self.folder_name))
+        folder_id = (self.search_for_file_id("mimeType='application/vnd.google-apps.folder'", self.folder_name))
         # Data from emails:
-        attachment_data = self.get_attachments_ids(self.mail_service, 'me', self.emails_ids)
+        attachment_data = self.get_attachments_ids(self.emails_ids)
         # Save stuff on drive and hard disk:
-        self.save_attachments(self.mail_service, self.py_drive, 'me', attachment_data, folder_id, save=False)
+        self.save_attachments(attachment_data, folder_id, save=False)
 
     def ids_of_messages_matching_query(self):
         """ List all Messages of the user's mailbox matching the query.
@@ -98,12 +97,9 @@ class FileUploader:
         matching_emails = [dict(tuples) for tuples in {tuple(dictionaries.items()) for dictionaries in matches}]
         self.emails_ids = [i['id'] for i in matching_emails]
 
-    @staticmethod
-    def get_attachments_ids(mail_service, user_id, emails_ids):
+    def get_attachments_ids(self, emails_ids):
         """ Get all attachments IDs from provided emails IDs.
         Args:
-          mail_service: Authorized Gmail API instance.
-          user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
           emails_ids: IDs of Messages containing attachments.
         Return:
             All attachments IDs contained in provided emails_ids in form of dictionary:
@@ -116,7 +112,7 @@ class FileUploader:
         try:
             # Iterate over emails_ids and get their data:
             for ids in emails_ids:
-                data = mail_service.users().messages().get(userId=user_id, id=ids, format='full').execute()
+                data = self.mail_service.users().messages().get(userId=self.user_id, id=ids, format='full').execute()
                 mail_data.append(data)
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
@@ -131,7 +127,7 @@ class FileUploader:
                     attachment_id = part['body']['attachmentId']
                     email_id = email['id']
                 except KeyError:
-                    print('KeyError line 117: No attachment in email:')
+                    print('KeyError in get_attachments_ids: No attachment in email:')
                     print('ID: ' + email['id'])
                 else:
                     attachments_file_names.append(filename)
@@ -143,13 +139,10 @@ class FileUploader:
         return {'Emails IDs': emails_id, 'Attachments IDs': attachment_ids,
                 'Attachments file names': attachments_file_names, 'mail data': mail_data}
 
-    @staticmethod
-    def save_attachments(mail_service, py_drive, user_id, attachment_data, drive_folder_id, save=False):
+    def save_attachments(self, attachment_data, drive_folder_id, save=False):
+        # TODO rework of this function
         """ Get and save attachments on user GDrive, with option to save them on hard drive.
         Args:
-            mail_service: Authorized Gmail API instance.
-            py_drive: Authorized GDrive API instance created by PyDrive.
-            user_id: User's email address. The special value "me" can be used to indicate the authenticated user.
             attachment_data: IDs of emails with attachments, attachments IDs and attachment file names.
             drive_folder_id: ID of folder in GDrive where attachments will be stored.
             save: Save files on hard disk: True/False.
@@ -160,10 +153,11 @@ class FileUploader:
         # Has to be in range function to be able to iterate over.
         for i in range(0, len(attachment_data['Attachments IDs'])):
             try:
-                file = mail_service.users().messages().attachments().get(userId=user_id,
-                                                                         messageId=attachment_data['Emails IDs'][i],
-                                                                         id=attachment_data['Attachments IDs'][
-                                                                             i]).execute()
+                file = self.mail_service.users().messages().attachments().get(userId=self.user_id,
+                                                                              messageId=attachment_data['Emails IDs'][
+                                                                                  i],
+                                                                              id=attachment_data['Attachments IDs'][
+                                                                                  i]).execute()
             except errors.HttpError as error:
                 print('An error occurred: %s' % {error})
             else:
@@ -175,11 +169,11 @@ class FileUploader:
                     with open(path, 'bw') as f:
                         f.write(file_data)
                     # TODO upload file directly from drive API
-                    drive_file = py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
+                    drive_file = self.py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
                     drive_file.SetContentFile(path)
                     drive_file.Upload()
                     files_amount += 1
-                    # Until PyDrive fix upload() method, then workaround to release file:
+                    # Until PyDrive fix upload() method, then workaround to release file - so it can be deleted:
                     drive_file.SetContentFile("nul")
                     if not save:
                         os.remove(path)
@@ -187,11 +181,10 @@ class FileUploader:
         print('Files saved: ' + str(files_amount))
         return files
 
-    def search_for_file_id(self, drive_service, type_of_file, name_of_file):
+    def search_for_file_id(self, type_of_file, name_of_file):
         """ Output id of file or folder with exact name and matching type.
             If folder doesn't exist then create one and return it's ID.
         Args:
-            drive_service: Authorized GDrive API instance.
             type_of_file: Query used to filter types of files returned:
                           https://developers.google.com/drive/api/v3/search-files
             name_of_file: String used to filter messages or folders returned.
@@ -202,9 +195,9 @@ class FileUploader:
             page_token = None
 
             while True:
-                searched_file = drive_service.files().list(q=type_of_file, pageSize=100, spaces='drive',
-                                                           fields='nextPageToken, files(id,name)',
-                                                           pageToken=page_token).execute(),
+                searched_file = self.drive_service.files().list(q=type_of_file, pageSize=100, spaces='drive',
+                                                                fields='nextPageToken, files(id,name)',
+                                                                pageToken=page_token).execute(),
                 if page_token is None:
                     break
             # If folder doesn't exist and user try to get ID, then create that folder and return ID.
@@ -214,30 +207,26 @@ class FileUploader:
                     if name_value['name'] == name_of_file:
                         searched_file_id = name_value['id']
                         return searched_file_id
-            searched_file_id = self.create_new_folder(drive_service, name_of_file, [])
-            return searched_file_id
+            elif type_of_file == "mimeType='application/vnd.google-apps.folder'":
+                searched_file_id = self.create_new_folder(name_of_file, [])
+                return searched_file_id
         except errors.HttpError as error:
             print('An error occurred: %s' % {error})
 
-    @staticmethod
-    def create_new_folder(drive_service, folder_name, parent_folder_id):
+    def create_new_folder(self, folder_name, parent_folder_id=None):
         """ Create folder on Google Drive
         Args:
-            drive_service: Authorized Gmail API drive_service instance.
             folder_name: User's email address. The special value "me" can be used to indicate the authenticated user.
             parent_folder_id(optional): String used to filter messages returned.
         Returns:
             Create folder and return it's ID. """
+        if not parent_folder_id:
+            folder_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
+        else:
+            folder_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder',
+                               'parents': [{"kind": "drive#fileLink", "id": parent_folder_id}]}
         try:
-            if not parent_folder_id:
-                folder_metadata = {'name': folder_name, 'mimeType': 'application/vnd.google-apps.folder'}
-            else:
-
-                folder_metadata = {'name': folder_name,
-                                   'mimeType': 'application/vnd.google-apps.folder',
-                                   'parents': [{"kind": "drive#fileLink", "id": parent_folder_id}]}
-
-            folder = drive_service.files().create(body=folder_metadata, fields='id').execute()
+            folder = self.drive_service.files().create(body=folder_metadata, fields='id').execute()
             # Return folder information:
             return folder['id']
         except errors.HttpError as error:
