@@ -39,7 +39,7 @@ class FileUploader:
         self.google_auth = GoogleAuth()
         self.google_auth.LocalWebserverAuth()
         self.google_auth.Authorize()
-
+        c=0
     def refresh_services(self):
         self.authentication()
         # TODO Check if need to recreate services
