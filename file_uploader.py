@@ -166,7 +166,7 @@ class FileUploader:
                 if not os.path.splitext(path)[1] == '.jpg' and path:
                     with open(path, 'bw') as f:
                         f.write(file_data)
-                    # TODO upload file directly from drive API
+                    # TODO upload file directly from drive API: Update - not possible for me ATM
                     drive_file = self.py_drive.CreateFile({'parents': [{'id': drive_folder_id}]})
                     drive_file.SetContentFile(path)
                     drive_file.Upload()

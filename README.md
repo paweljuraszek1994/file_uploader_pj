@@ -8,7 +8,7 @@ Script to automate downloading attachments from email and uploading them to GDri
 * [Sources](#Sources)
 
 ## General info
-Project was designed to automate invoices downloading and uploading to google drive.
+Project is designed to automate downloading invoices and uploading them to google drive.
 
 ## Technologies
 Project is created with:
@@ -16,12 +16,12 @@ Project is created with:
 
 ## Status
 In minor development.\
-Most of the things that were necessary for script to work is already done.\
-I will probably work on making unit tests. Just to learn how to make them.\
-Reworks might be done as I gain more experience in python.\
-As well as some stuff marked as TODO, that is not critical for script to work.
-## Sources:
-Documentations for used api and libraries.
+Scrip is in working state, only exploratory testing.\
+I will probably work on making unit tests.\
+Reworks might be possible as I gain more experience in python.\
+As well as some stuff marked as TODO, but they are not critical for script to work.
+## Sources
+Documentations of used api and libraries.
 
 
 

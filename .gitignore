@@ -7,4 +7,3 @@ client_secrets.json
 *.json
 token.pickle
 sendertest.py
-test_uploader.py
